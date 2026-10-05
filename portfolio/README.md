@@ -21,8 +21,30 @@ Windows 双击 `start.bat`；macOS / Linux 执行：
 然后在浏览器打开 <http://127.0.0.1:8000>。
 
 启动脚本会自动判断环境：装了 FastAPI 就用 FastAPI，没装就用零依赖标准库服务器，
-**两种情况页面和接口完全一致**。启动脚本按 `py` → `python` → DSH 随附运行时的顺序
-寻找 Python 解释器。
+**两种情况页面和接口完全一致**。`start.bat` 会在启动时打印实际使用的解释器与模式，
+避免"以为在用 FastAPI、其实回退成了标准库"这种静默降级。
+
+**Python 解释器的查找顺序**（找到即用，可用 `PORTFOLIO_PYTHON` 环境变量直接指定）：
+
+| 顺序 | 来源 | 说明 |
+| --- | --- | --- |
+| 0 | `CONDA_PREFIX` / `VIRTUAL_ENV` | 已激活的 conda / venv 环境优先 |
+| 1 | `PORTFOLIO_PYTHON` | 显式指定的解释器绝对路径 |
+| 2 | `py` 启动器 | 系统注册的默认版本 |
+| 3 | `python`（PATH） | 当前 PATH 中的 Python |
+| 4 | DSH 随附运行时 | 兜底 |
+
+> **为什么把虚拟环境放在最前面**：如果你在某个 conda 环境里 `pip install fastapi`，
+> 自然是希望就用它。早先的脚本优先用 `py` 启动器，会静静地选中另一个没装
+> fastapi 的解释器并回退到标准库，让人以为 FastAPI 没生效。
+
+指定解释器的例子：
+
+```powershell
+# Windows：显式指定某个环境
+$env:PORTFOLIO_PYTHON = "D:\conda\envs\person\python.exe"
+.\start.bat
+```
 
 > **⚠️ 修改 `start.bat` 时必读（曾经踩过的坑）**
 >

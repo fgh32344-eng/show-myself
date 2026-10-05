@@ -131,8 +131,8 @@ def api_messages(ctx: "Context") -> Any:
 @route("POST", r"/api/messages")
 def api_create_message(ctx: "Context") -> Any:
     try:
-        payload = MessageIn(**ctx.json_body())
-    except ValueError as exc:  # 字段校验失败（含零依赖模式）
+        payload = MessageIn.from_payload(ctx.json_body())
+    except ValueError as exc:  # 校验失败（与 FastAPI 模式共用同一套规则）
         raise ApiError(422, str(exc)) from exc
     if db.recent_messages_by_ip(ctx.ip) >= util.MAX_MESSAGES_PER_HOUR:
         raise ApiError(
@@ -152,7 +152,7 @@ def api_create_message(ctx: "Context") -> Any:
 @route("POST", r"/api/admin/login")
 def api_admin_login(ctx: "Context") -> Any:
     try:
-        payload = LoginIn(**ctx.json_body())
+        payload = LoginIn.from_payload(ctx.json_body())
     except ValueError as exc:
         raise ApiError(422, str(exc)) from exc
     token = views.login(payload.username, payload.password)

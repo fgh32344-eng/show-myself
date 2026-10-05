@@ -156,7 +156,10 @@ check("删除测试留言", status == 200, status)
 
 status, health, _ = call("GET", "/api/health")
 check("健康检查", status == 200 and health["status"] == "ok", status)
-check("运行模式为 stdlib", health.get("runtime") == "stdlib", health.get("runtime"))
+# 两种后端都受支持：装了 fastapi 用 FastAPI，未装则回退标准库。
+# 这里只校验运行模式是二者之一，不绑定某一种。
+_runtime = health.get("runtime")
+check("运行模式为 fastapi 或 stdlib", _runtime in ("fastapi", "stdlib"), _runtime)
 
 # ---------- 汇总 ----------
 failed = [r for r in results if not r["ok"]]

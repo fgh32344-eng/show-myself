@@ -12,9 +12,15 @@
   python backend\\server.py     强制使用零依赖标准库服务器
 
 安装依赖后可用：pip install -r backend\\requirements.txt
-"""
-from __future__ import annotations
 
+注意：本文件**刻意不使用** `from __future__ import annotations`。
+原因：该导入会把所有注解变成字符串，而 FastAPI/pydantic 是在**模块命名空间**
+中求值这些字符串的。build_app() 内部局部导入的 Request / Query / Header 等名字
+在模块级并不存在，导致 pydantic 报
+    ForwardRef('Request') is not fully defined
+进而把 `request: Request` 误判为请求体字段，OpenAPI 生成失败，
+所有相关接口返回 422。Python 3.10+ 本身已支持 `X | None` 写法，无需该导入。
+"""
 import json
 import os
 import secrets
@@ -22,10 +28,11 @@ import sqlite3
 import string
 import sys
 import time
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from string import Template
-from typing import Any, Optional
+from typing import Any, AsyncIterator, Optional
 
 # --------------------------------------------------------------------------
 # util
@@ -391,58 +398,75 @@ class db:
 
 # --------------------------------------------------------------------------
 # schema
-# 说明：入参校验统一写在 __init__ 里，这样无论环境是否安装 pydantic，行为完全一致。
-#      安装了 pydantic 时额外声明 Field，用于生成 /api/docs 的请求体 schema。
+#
+# 这里刻意**不继承 pydantic**BaseModel：早先的版本在模型上覆盖了 __init__
+# 来同时兼容两种运行模式，结果破坏了 pydantic 的内部状态，FastAPI 模式下
+# 会抛 `AttributeError: object has no attribute '__pydantic_fields_set__'`，
+# 登录与留言接口直接 500。
+#
+# 现在的做法是把「校验」和「模型」分开：
+#   * 校验规则集中在 _normalize_* 纯函数里，两种模式共用，行为完全一致
+#   * MessageIn / LoginIn 只是普通容器；FastAPI 路由用 Body(...) 接收 dict，
+#     再交给同一个 from_payload() 校验
+# 这样既不与 pydantic 的内部机制冲突，OpenAPI 也能正常生成。
 # --------------------------------------------------------------------------
-try:  # pragma: no cover - 取决于环境是否安装 pydantic
-    from pydantic import BaseModel as _PydanticBase, Field as _PydanticField
-
-    HAS_PYDANTIC = True
-except ImportError:  # 零依赖模式
-    _PydanticBase = object  # type: ignore[assignment,misc]
-    HAS_PYDANTIC = False
-
-    def _PydanticField(default: Any = None, **kwargs: Any) -> Any:  # type: ignore[misc]
-        return default
+HAS_PYDANTIC = False
 
 
-class MessageIn(_PydanticBase):  # type: ignore[misc,valid-type]
-    """留言提交模型。"""
+def _normalize_message(payload: dict[str, Any]) -> tuple[str, str, str]:
+    """校验并规范化留言入参，返回 (name, contact, content)。失败抛 ValueError。"""
+    if not isinstance(payload, dict):
+        raise ValueError("请求体必须是 JSON 对象")
 
-    if HAS_PYDANTIC:  # 仅用于文档与类型提示
-        name: str = _PydanticField(default="匿名访客", max_length=util.NAME_MAX_LEN)
-        contact: str = _PydanticField(default="", max_length=80)
-        content: str = _PydanticField(default="", max_length=util.MESSAGE_MAX_LEN)
+    name = str(payload.get("name") or "").strip()[: util.NAME_MAX_LEN]
+    contact = str(payload.get("contact") or "").strip()[:80]
+    content = str(payload.get("content") or "").strip()
 
-    def __init__(self, name: Any = None, contact: Any = None, content: Any = None, **kwargs: Any) -> None:
-        name = ("" if name is None else str(name)).strip()[: util.NAME_MAX_LEN]
-        contact = ("" if contact is None else str(contact)).strip()[:80]
-        content = ("" if content is None else str(content)).strip()
+    if not content:
+        raise ValueError("留言内容不能为空")
+    if len(content) > util.MESSAGE_MAX_LEN:
+        raise ValueError(f"留言内容不能超过 {util.MESSAGE_MAX_LEN} 字")
 
-        if not content:
-            raise ValueError("留言内容不能为空")
-        if len(content) > util.MESSAGE_MAX_LEN:
-            raise ValueError(f"留言内容不能超过 {util.MESSAGE_MAX_LEN} 字")
-
-        self.name = name or "匿名访客"
-        self.contact = contact
-        self.content = content
-        if kwargs and HAS_PYDANTIC:
-            super().__init__(**kwargs)
+    return name or "匿名访客", contact, content
 
 
-class LoginIn(_PydanticBase):  # type: ignore[misc,valid-type]
-    """后台登录模型。"""
+def _normalize_login(payload: dict[str, Any]) -> tuple[str, str]:
+    """校验并规范化登录入参，返回 (username, password)。"""
+    if not isinstance(payload, dict):
+        raise ValueError("请求体必须是 JSON 对象")
+    username = str(payload.get("username") or "").strip()[:40]
+    password = str(payload.get("password") or "")[:80]
+    return username, password
 
-    if HAS_PYDANTIC:
-        username: str = _PydanticField(default="", max_length=40)
-        password: str = _PydanticField(default="", max_length=80)
 
-    def __init__(self, username: Any = None, password: Any = None, **kwargs: Any) -> None:
-        self.username = ("" if username is None else str(username)).strip()[:40]
-        self.password = "" if password is None else str(password)[:80]
-        if kwargs and HAS_PYDANTIC:
-            super().__init__(**kwargs)
+class MessageIn:
+    """留言提交模型（普通容器 + 共享校验）。"""
+
+    __slots__ = ("name", "contact", "content")
+
+    def __init__(self, payload: dict[str, Any] | None = None, **kwargs: Any) -> None:
+        merged = dict(payload or {})
+        merged.update(kwargs)
+        self.name, self.contact, self.content = _normalize_message(merged)
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "MessageIn":
+        return cls(payload)
+
+
+class LoginIn:
+    """后台登录模型（普通容器 + 共享校验）。"""
+
+    __slots__ = ("username", "password")
+
+    def __init__(self, payload: dict[str, Any] | None = None, **kwargs: Any) -> None:
+        merged = dict(payload or {})
+        merged.update(kwargs)
+        self.username, self.password = _normalize_login(merged)
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "LoginIn":
+        return cls(payload)
 
 
 # --------------------------------------------------------------------------
@@ -487,13 +511,27 @@ class views:
 def build_app() -> Any:
     """构建 FastAPI 应用；未安装 fastapi 时返回 None。"""
     try:
-        from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+        from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, Request
         from fastapi.responses import FileResponse, HTMLResponse
         from fastapi.staticfiles import StaticFiles
     except ImportError:
         return None
 
-    from typing import Optional as _Optional  # noqa: F401
+    # 注意：注解在 `from __future__ import annotations` 下是字符串，
+    # 由 pydantic 在**模块全局命名空间**中求值。因此这里必须使用模块级
+    # 导入的 Optional，不能在函数内起 `Optional` 之类的别名——
+    # 那样 pydantic 找不到名字，OpenAPI 生成失败，所有相关接口返回 422。
+
+    @asynccontextmanager
+    async def lifespan(_: Any) -> AsyncIterator[None]:
+        """应用启动/关闭钩子。
+
+        使用 lifespan 而非已弃用的 @app.on_event("startup")，
+        避免 FastAPI 输出 DeprecationWarning。
+        """
+        util.ensure_dirs()
+        db.init()
+        yield
 
     application = FastAPI(
         title="王耀威 · 个人主页 API",
@@ -502,14 +540,10 @@ def build_app() -> Any:
         docs_url="/api/docs",
         redoc_url=None,
         openapi_url="/api/openapi.json",
+        lifespan=lifespan,
     )
 
-    @application.on_event("startup")
-    def _startup() -> None:
-        util.ensure_dirs()
-        db.init()
-
-    def require_admin(x_admin_token: _Optional[str] = Header(default=None)) -> str:
+    def require_admin(x_admin_token: Optional[str] = Header(default=None)) -> str:
         if not views.verify(x_admin_token):
             raise HTTPException(status_code=401, detail="未登录或登录已过期，请重新登录")
         return x_admin_token or ""
@@ -526,7 +560,7 @@ def build_app() -> Any:
         return util.read_json(util.RESUME_PATH)["profile"]
 
     @application.get("/api/projects", tags=["简历"], summary="获取项目列表")
-    def get_projects(tag: _Optional[str] = Query(default=None, description="按技术栈过滤")) -> Any:
+    def get_projects(tag: Optional[str] = Query(default=None, description="按技术栈过滤")) -> Any:
         projects = util.read_json(util.RESUME_PATH)["projects"]
         if tag:
             projects = [p for p in projects if any(tag.lower() in t.lower() for t in p.get("tags", []))]
@@ -539,7 +573,10 @@ def build_app() -> Any:
 
     # ------------- 统计 -------------
     @application.post("/api/visit", tags=["统计"], summary="上报一次页面访问")
-    async def post_visit(request: Request, payload: _Optional[dict] = None) -> Any:
+    async def post_visit(
+        request: Request,
+        payload: Optional[dict] = Body(default=None, description="可选，形如 {\"path\": \"/\"}"),
+    ) -> Any:
         path = "/"
         if isinstance(payload, dict):
             path = str(payload.get("path") or "/")[:200]
@@ -574,7 +611,23 @@ def build_app() -> Any:
         return data
 
     @application.post("/api/messages", status_code=201, tags=["留言"], summary="提交留言")
-    def create_message(payload: MessageIn, request: Request) -> Any:
+    def create_message(
+        request: Request,
+        payload: dict = Body(
+            ...,
+            description="留言内容",
+            openapi_examples={
+                "默认": {
+                    "value": {"name": "访客", "contact": "you@example.com", "content": "你好！"},
+                }
+            },
+        ),
+    ) -> Any:
+        try:
+            message = MessageIn.from_payload(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
         ip = util.client_ip(request)
         if db.recent_messages_by_ip(ip) >= util.MAX_MESSAGES_PER_HOUR:
             raise HTTPException(
@@ -582,16 +635,29 @@ def build_app() -> Any:
                 detail=f"留言过于频繁，同一访客每小时最多 {util.MAX_MESSAGES_PER_HOUR} 条，请稍后再试。",
             )
         return db.add_message(
-            payload.name, payload.contact, payload.content, ip, request.headers.get("user-agent", "")
+            message.name, message.contact, message.content, ip, request.headers.get("user-agent", "")
         )
 
     # ------------- 后台 -------------
     @application.post("/api/admin/login", tags=["后台"], summary="管理员登录")
-    def admin_login(payload: LoginIn) -> Any:
-        token = views.login(payload.username, payload.password)
+    def admin_login(
+        payload: dict = Body(
+            ...,
+            description="后台账号密码",
+            openapi_examples={
+                "默认": {"value": {"username": util.ADMIN_USER, "password": util.ADMIN_PASSWORD}},
+            },
+        ),
+    ) -> Any:
+        try:
+            login = LoginIn.from_payload(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+        token = views.login(login.username, login.password)
         if not token:
             raise HTTPException(status_code=401, detail="用户名或密码错误")
-        return {"token": token, "expires_in": util.TOKEN_TTL, "user": payload.username}
+        return {"token": token, "expires_in": util.TOKEN_TTL, "user": login.username}
 
     @application.post("/api/admin/logout", tags=["后台"], summary="管理员登出")
     def admin_logout(token: str = Depends(require_admin)) -> Any:
@@ -603,7 +669,7 @@ def build_app() -> Any:
         page: int = Query(default=1, ge=1),
         page_size: int = Query(default=10, ge=1, le=100),
         keyword: str = Query(default=""),
-        approved: _Optional[int] = Query(default=None, ge=0, le=1),
+        approved: Optional[int] = Query(default=None, ge=0, le=1),
         _: str = Depends(require_admin),
     ) -> Any:
         return db.list_messages(page=page, page_size=page_size, keyword=keyword.strip(), approved=approved)
