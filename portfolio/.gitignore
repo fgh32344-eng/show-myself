@@ -42,3 +42,8 @@ desktop.ini
 _tmp/
 *.log
 *.bak
+
+# ---- 诊断脚本 ----
+# 推送排查用的一次性脚本，不属于网站内容
+diag-push.ps1
+push-diagnostic.txt
