@@ -13,15 +13,19 @@ data/*.db-wal
 data/*.db-shm
 *.sqlite3
 
-# ---- 构建产物 ----
-# dist/portfolio-standalone.html 会一并提交：它是可直接双击查看的单文件版，
-# 也用于部署 GitHub Pages，属于交付物而非临时产物。
+# ---- 构建产物（不追踪，用脚本重建）----
+# dist/portfolio-standalone.html  -> python tests/build_standalone.py
+# ../docs/index.html              -> python tests/build_pages.py
+# 二者内容相同，保留 dist/ 只是方便本地双击预览。
+# 之所以不入库：它们各有 130 KB，且每次改内容都会产生新版本，
+# 会让仓库历史快速膨胀。克隆后执行上面的命令即可生成。
+dist/
 tests/test_report.json
 
 # ---- 素材原图 ----
-# setup_avatar.py 会把原始照片归档到这里。网站只使用压缩后的
+# setup_avatar.py 会读取项目根目录的 photo.png 生成头像。
+# 处理完请自行删除原图，或放到仓库外——网站只使用压缩后的
 # frontend/static/assets/avatar.jpg，原图（可达数 MB）无需入库。
-assets-src/
 photo.png
 photo.jpg
 photo.jpeg

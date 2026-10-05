@@ -5,6 +5,11 @@
 # 忽略后 git 就不会再尝试遍历它，从而消除 status 里的 Permission denied 警告。
 _tmp/
 
+# GitHub Pages 发布目录：由 portfolio/tests/build_pages.py 生成，
+# 属于可重建的构建产物，不入库以保持仓库精简。
+# 启用 Pages 前先执行：python portfolio/tests/build_pages.py
+docs/
+
 # 其它临时/日志
 *.log
 *.tmp

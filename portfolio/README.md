@@ -221,16 +221,27 @@ portfolio/                          ← 项目本体
 ├── data/
 │   ├── resume.json        # 简历内容（改这个文件即可更新整站展示）
 │   └── portfolio.db       # SQLite 数据库（首次运行自动生成，不入库）
-├── dist/
-│   └── portfolio-standalone.html  # 单文件离线版（构建产物）
+├── dist/                          ← 构建产物，不纳入版本控制
+│   └── portfolio-standalone.html  # 单文件离线版（build_standalone.py 生成）
 ├── tests/                 # 测试与构建脚本
 ├── start.bat / start.sh   # 一键启动脚本
 ├── .gitattributes         # 换行策略（start.sh 锁 LF、start.bat 锁 CRLF）
 └── README.md
 
-docs/                               ← GitHub Pages 发布目录（仓库根下）
+docs/                               ← GitHub Pages 发布目录（仓库根下，不纳入版本控制）
 ├── index.html             # 由 build_pages.py 生成，内容同单文件离线版
 └── .nojekyll              # 禁用 Jekyll，避免下划线文件被忽略
+```
+
+> **`dist/` 与 `docs/` 为什么不入库**
+>
+> 两者都是**可随时重建的构建产物**，且内容相同（各约 132 KB）。
+> 每次改动内容都会产生新版本，留在历史里会让仓库快速膨胀，
+> 因此已加入 `.gitignore`。**克隆仓库后需要先执行构建命令再使用**：
+
+```bash
+python tests/build_standalone.py   # 生成 dist/portfolio-standalone.html（本地双击预览）
+python tests/build_pages.py        # 生成 docs/index.html（GitHub Pages 发布）
 ```
 
 ---
@@ -248,13 +259,35 @@ python tests/build_pages.py
 python tests/check_privacy.py
 python tests/check_pages.py
 
-# 3. 提交并推送
+# 3. 提交并推送源码
 git add -A
-git commit -m "发布 GitHub Pages"
+git commit -m "更新内容或构建脚本"
 git push
 ```
 
-**4. 在 GitHub 上启用 Pages**
+**4. 把产物推上去**
+
+`docs/` 已被 `.gitignore` 排除（属于可重建产物），而 GitHub Pages 又必须
+从仓库里的目录发布，所以有两种做法，**任选其一**：
+
+```bash
+# 做法 A：只把 docs 强制加入版本控制（简单，推荐中小企业/个人项目）
+git add -f docs
+git commit -m "发布 GitHub Pages 产物"
+git push
+```
+
+```bash
+# 做法 B：改用 GitHub Actions 在云端构建（仓库始终干净，推荐进阶使用）
+# 在仓库里新建 .github/workflows/pages.yml：
+#   - actions/checkout
+#   - actions/setup-python
+#   - run: python portfolio/tests/build_pages.py
+#   - actions/upload-pages-artifact (path: docs)
+#   - actions/deploy-pages
+```
+
+**5. 在 GitHub 上启用 Pages**
 
 仓库 → `Settings` → `Pages` → `Source` 选 **Deploy from a branch** →
 分支 `main`、目录 **`/docs`** → `Save`。等待 1–2 分钟后访问：
