@@ -13,11 +13,18 @@ data/*.db-wal
 data/*.db-shm
 *.sqlite3
 
-# ---- 测试产物 ----
+# ---- 构建产物 ----
+# dist/portfolio-standalone.html 会一并提交：它是可直接双击查看的单文件版，
+# 也用于部署 GitHub Pages，属于交付物而非临时产物。
 tests/test_report.json
 
-# ---- 构建产物（如需发布到 GitHub Pages 可自行放开下面一行）----
-# dist/portfolio-standalone.html
+# ---- 素材原图 ----
+# setup_avatar.py 会把原始照片归档到这里。网站只使用压缩后的
+# frontend/static/assets/avatar.jpg，原图（可达数 MB）无需入库。
+assets-src/
+photo.png
+photo.jpg
+photo.jpeg
 
 # ---- 编辑器 / 系统 ----
 .vscode/

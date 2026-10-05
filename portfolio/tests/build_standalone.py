@@ -24,7 +24,8 @@ BASE = Path(__file__).resolve().parent.parent
 PAGE = BASE / "frontend" / "pages" / "index.html"
 CSS = BASE / "frontend" / "static" / "css" / "style.css"
 JS = BASE / "frontend" / "static" / "js" / "main.js"
-AVATAR = BASE / "frontend" / "static" / "assets" / "avatar.svg"
+FAVICON = BASE / "frontend" / "static" / "favicon.svg"
+ASSETS_DIR = BASE / "frontend" / "static" / "assets"
 RESUME = BASE / "data" / "resume.json"
 OUT_DIR = BASE / "dist"
 OUT = OUT_DIR / "portfolio-standalone.html"
@@ -43,13 +44,20 @@ OFFLINE_NOTE = """<!--
 -->"""
 
 
-def svg_to_data_uri(path: Path) -> str:
-    raw = path.read_bytes()
-    return "data:image/svg+xml;base64," + base64.b64encode(raw).decode("ascii")
+def to_data_uri(path: Path) -> str:
+    """把图片转成 data URI。SVG 与位图分别用对应的 MIME 类型。"""
+    mime = {
+        ".svg": "image/svg+xml",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+    }.get(path.suffix.lower(), "application/octet-stream")
+    return f"data:{mime};base64," + base64.b64encode(path.read_bytes()).decode("ascii")
 
 
 def main() -> int:
-    for required in (PAGE, CSS, JS, RESUME):
+    for required in (PAGE, CSS, JS, RESUME, FAVICON):
         if not required.exists():
             print(f"FAIL 缺少文件：{required}")
             return 1
@@ -59,6 +67,14 @@ def main() -> int:
     js = JS.read_text(encoding="utf-8")
     resume = json.loads(RESUME.read_text(encoding="utf-8"))
 
+    # 头像以 resume.json 为准（用户可能换成 .jpg/.png），避免写死文件名
+    avatar_web = resume["profile"].get("avatar", "")
+    avatar_file = ASSETS_DIR / Path(avatar_web).name
+    if not avatar_file.exists():
+        print(f"FAIL resume.json 指向的头像不存在：{avatar_web}  ->  {avatar_file}")
+        print("     请先执行 python tests/setup_avatar.py")
+        return 1
+
     # ---- 1. 内联样式，替换掉指向 /static 的 link ----
     style_tag = "<style>\n" + css + "\n</style>"
     html, n_link = re.subn(
@@ -67,16 +83,16 @@ def main() -> int:
 
     # ---- 2. favicon 内联为 data URI（离线时也要有图标）----
     # 注意：link 标签的属性顺序不保证，用 [^>]* 兜住
-    favicon_data = svg_to_data_uri(BASE / "frontend" / "static" / "favicon.svg")
+    favicon_data = to_data_uri(FAVICON)
     favicon_tag = f'<link rel="icon" href="{favicon_data}" type="image/svg+xml">'
     html, n_icon = re.subn(
         r'<link[^>]*rel="icon"[^>]*>', favicon_tag, html
     )
 
     # ---- 3. 头像也内联，避免依赖外部文件 ----
-    avatar_data = svg_to_data_uri(AVATAR)
+    avatar_data = to_data_uri(avatar_file)
     resume["profile"]["avatar"] = avatar_data
-    # 首页里 <img id="avatarImg" src="/static/assets/avatar.svg"> 是 JS 加载前的占位
+    # 首页里 <img id="avatarImg" src="/static/assets/avatar.*"> 是 JS 加载前的占位
     html, n_avatar = re.subn(
         r'(<img id="avatarImg"[^>]*?)src="[^"]*"',
         lambda m: m.group(1) + f'src="{avatar_data}"',

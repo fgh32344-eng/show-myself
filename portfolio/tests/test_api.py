@@ -31,6 +31,8 @@ def call(method, path, body=None, headers=None, raw=False):
         payload = exc.read()
         status = exc.code
         ctype = exc.headers.get("Content-Type", "")
+    if raw == "bytes":
+        return status, payload, ctype          # 二进制：图片等，不能按文本解码
     if raw:
         return status, payload.decode("utf-8", "replace"), ctype
     try:
@@ -58,8 +60,14 @@ status, css, ctype = call("GET", "/static/css/style.css", raw=True)
 check("静态 CSS 可访问", status == 200 and "--cyan" in css, status)
 status, js, _ = call("GET", "/static/js/main.js", raw=True)
 check("静态 JS 可访问", status == 200 and "renderProfile" in js, status)
-status, _, ctype = call("GET", "/static/assets/avatar.svg", raw=True)
-check("头像 SVG 可访问", status == 200 and "image/svg" in ctype, ctype)
+# 头像路径以 resume.json 为准，避免把文件名写死在测试里
+status, profile_probe, _ = call("GET", "/api/profile")
+_avatar_path = profile_probe["avatar"]
+status, avatar_bytes, ctype = call("GET", _avatar_path, raw="bytes")
+check("头像可访问", status == 200 and "image/" in ctype, f"{_avatar_path} -> {ctype}")
+_is_jpeg = avatar_bytes[:3] == b"\xff\xd8\xff"
+_is_png = avatar_bytes[:4] == b"\x89PNG"
+check("头像是真实位图（非占位 SVG）", _is_jpeg or _is_png, avatar_bytes[:4].hex())
 status, _, _ = call("GET", "/favicon.ico", raw=True)
 check("favicon 可访问", status == 200, status)
 status, _, _ = call("GET", "/static/../backend/app.py", raw=True)

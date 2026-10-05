@@ -50,8 +50,11 @@ check("无 <script src=", "<script src=" not in html)
 #    离线版由 __ASSET_BASE__='' 覆盖，因此只需确认没有静态资源外链。
 static_refs = re.findall(r'(?:href|src)="/static/[^"]*"', html)
 check("无 /static 静态资源外链", not static_refs, str(static_refs))
-data_uris = re.findall(r'"data:image/svg\+xml;base64,[A-Za-z0-9+/=]{20,}"', html)
+data_uris = re.findall(
+    r'"data:image/(?:svg\+xml|jpeg|png|webp);base64,[A-Za-z0-9+/=]{20,}"', html
+)
 check("图标与头像均为内联 data URI", len(data_uris) >= 2, f"发现 {len(data_uris)} 处")
+check("头像为真实照片（JPEG 内联）", "data:image/jpeg;base64," in html)
 
 # 3. 数据必须内联且可解析
 match = re.search(r"window\.__SITE_DATA__\s*=\s*(\{.*?\});\s*\nwindow\.__STANDALONE__", html, re.S)

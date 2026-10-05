@@ -1,0 +1,36 @@
+# 统一换行符，避免跨平台克隆时把启动脚本改坏。
+# 背景：start.sh 必须是 LF（bash 读到 CR 会报错），
+#       start.bat 在 Windows 上用 CRLF 最稳。
+
+# 默认：入库统一用 LF，检出时由 git 依平台决定
+* text=auto
+
+# 明确指定为文本文件
+*.py    text
+*.js    text
+*.css   text
+*.html  text
+*.json  text
+*.md    text
+*.txt   text
+.gitignore      text
+.gitattributes  text
+
+# 启动脚本：各自锁定换行风格，任何平台克隆都必须保持原样
+*.sh    text eol=lf
+*.bat   text eol=crlf
+
+# start.bat 以 CP936(ANSI) 编码保存，属于二进制语义的文本，
+# 关闭 diff/合并的文本处理，避免被自动改编码或换行而损坏。
+start.bat       -text
+start.bat.utf8  text eol=crlf
+
+# 图片等二进制文件不参与换行转换
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.ico   binary
+*.svg   text
+*.db    binary
+*.pyc   binary

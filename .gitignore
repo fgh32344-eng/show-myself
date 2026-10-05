@@ -1,0 +1,14 @@
+# 仓库根在 D:\dshwork，项目本体在 portfolio/ 子目录，
+# 这里排除仓库根下与项目无关的内容。
+
+# pip 安装失败留下的临时目录（ACL 受限，连读取都会被拒），
+# 忽略后 git 就不会再尝试遍历它，从而消除 status 里的 Permission denied 警告。
+_tmp/
+
+# 其它临时/日志
+*.log
+*.tmp
+
+# 说明：.vscode/ 已被历史提交跟踪，此处不再忽略，以免产生
+# “已跟踪文件同时被 ignore” 的困惑。若想彻底移除请执行：
+#   git rm -r --cached .vscode
