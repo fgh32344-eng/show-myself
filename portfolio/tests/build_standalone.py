@@ -56,7 +56,8 @@ def to_data_uri(path: Path) -> str:
     return f"data:{mime};base64," + base64.b64encode(path.read_bytes()).decode("ascii")
 
 
-def main() -> int:
+def build(out_path: Path = OUT) -> int:
+    """生成单文件离线版到 out_path。返回 0 表示成功。"""
     for required in (PAGE, CSS, JS, RESUME, FAVICON):
         if not required.exists():
             print(f"FAIL 缺少文件：{required}")
@@ -76,9 +77,13 @@ def main() -> int:
         return 1
 
     # ---- 1. 内联样式，替换掉指向 /static 的 link ----
+    # 注意：替换内容一律用 lambda 返回，避免 re.subn 把替换串里的 \d、\1 等
+    #       当成正则转义解析（JS 代码里 replace(/[^\d+]/g, '') 就会触发这个坑）
     style_tag = "<style>\n" + css + "\n</style>"
     html, n_link = re.subn(
-        r'\s*<link rel="stylesheet" href="/static/css/style\.css">', "\n" + style_tag, html
+        r'\s*<link rel="stylesheet" href="/static/css/style\.css">',
+        lambda m: "\n" + style_tag,
+        html,
     )
 
     # ---- 2. favicon 内联为 data URI（离线时也要有图标）----
@@ -86,7 +91,7 @@ def main() -> int:
     favicon_data = to_data_uri(FAVICON)
     favicon_tag = f'<link rel="icon" href="{favicon_data}" type="image/svg+xml">'
     html, n_icon = re.subn(
-        r'<link[^>]*rel="icon"[^>]*>', favicon_tag, html
+        r'<link[^>]*rel="icon"[^>]*>', lambda m: favicon_tag, html
     )
 
     # ---- 3. 头像也内联，避免依赖外部文件 ----
@@ -122,7 +127,9 @@ def main() -> int:
         "</script>\n<script>\n" + js + "\n</script>"
     )
     html, n_script = re.subn(
-        r'\s*<script src="/static/js/main\.js"></script>', "\n" + script_tag, html
+        r'\s*<script src="/static/js/main\.js"></script>',
+        lambda m: "\n" + script_tag,
+        html,
     )
 
     # ---- 6. 注入说明注释 ----
@@ -158,12 +165,12 @@ document.addEventListener('click', function (event) {
         1,
     )
 
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(html, encoding="utf-8")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(html, encoding="utf-8")
 
     # ---- 校验 ----
-    print(f"已生成：{OUT}")
-    print(f"  体积        : {OUT.stat().st_size / 1024:.1f} KB")
+    print(f"已生成：{out_path}")
+    print(f"  体积        : {out_path.stat().st_size / 1024:.1f} KB")
     print(f"  内联样式    : {'成功' if n_link else '失败（未匹配到 link 标签）'}")
     print(f"  内联图标    : {'成功' if n_icon else '失败'}")
     print(f"  内联头像    : {'成功' if n_avatar else '失败'}")
@@ -173,6 +180,10 @@ document.addEventListener('click', function (event) {
     print(f"  残留 $ 占位符: {sorted(set(re.findall(r'\$[a-z_]+', html))) or '无'}")
     print(f"  含内联数据  : {'是' if '__SITE_DATA__' in html else '否'}")
     return 0 if (n_link and n_script and not leftover) else 1
+
+
+def main() -> int:
+    return build(OUT)
 
 
 if __name__ == "__main__":

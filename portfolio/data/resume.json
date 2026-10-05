@@ -9,7 +9,8 @@
     "graduation": "2027.06",
     "targetRole": "人工智能 / 大模型应用 / 软件开发方向",
     "location": "安徽省宿州市",
-    "phone": "183-2577-3203",
+    "phone": "",
+    "phoneNote": "面试时提供",
     "email": "2937479259@qq.com",
     "avatar": "/static/assets/avatar.jpg",
     "tagline": "用计算机视觉与 LLM 工程，把模型变成能跑起来的产品。",
@@ -41,11 +42,6 @@
         "label": "邮箱",
         "url": "mailto:2937479259@qq.com",
         "icon": "mail"
-      },
-      {
-        "label": "电话",
-        "url": "tel:18325773203",
-        "icon": "phone"
       }
     ]
   },

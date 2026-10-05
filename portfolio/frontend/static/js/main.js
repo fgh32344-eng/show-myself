@@ -86,22 +86,31 @@ function renderProfile(profile) {
     ].map((item) => `<span>${escapeHtml(item)}</span>`).join('');
   }
 
+  // 手机号可能为空（不公开），此时显示 phoneNote 提示而不是坏掉的 tel: 链接
+  const phoneNote = profile.phoneNote || '面试时提供';
+  const phoneDigits = String(phone || '').replace(/[^\d+]/g, '');
+  const phoneCard = phone
+    ? `<a href="tel:${escapeHtml(phoneDigits)}" title="${escapeHtml(phone)}">电话</a>`
+    : '';
+  const phoneRow = phone
+    ? `<a href="tel:${escapeHtml(phoneDigits)}">${escapeHtml(phone)}</a>`
+    : `<span class="muted">${escapeHtml(phoneNote)}</span>`;
+
   const contacts = $('#cardContacts');
   if (contacts) {
+    const github = (social || []).find((s) => s.icon === 'github') || {};
     const items = [
-      { label: '电话', href: `tel:${phone.replace(/-/g, '')}`, value: phone },
-      { label: '邮箱', href: `mailto:${email}`, value: email },
-      { label: 'GitHub', href: (social.find((s) => s.icon === 'github') || {}).url || '#', value: 'GitHub' },
-    ];
-    contacts.innerHTML = items
-      .map((item) => `<a href="${escapeHtml(item.href)}" title="${escapeHtml(item.value)}">${escapeHtml(item.label)}</a>`)
-      .join('');
+      phoneCard,
+      `<a href="mailto:${escapeHtml(email)}" title="${escapeHtml(email)}">邮箱</a>`,
+      github.url ? `<a href="${escapeHtml(github.url)}" target="_blank" rel="noopener" title="${escapeHtml(github.url)}">GitHub</a>` : '',
+    ].filter(Boolean);
+    contacts.innerHTML = items.join('');
   }
 
   const contactList = $('#contactList');
   if (contactList) {
     contactList.innerHTML = [
-      ['电话', `<a href="tel:${escapeHtml(phone.replace(/-/g, ''))}">${escapeHtml(phone)}</a>`],
+      ['电话', phoneRow],
       ['邮箱', `<a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a>`],
       ['地区', escapeHtml(location)],
       ['求职', escapeHtml(targetRole)],

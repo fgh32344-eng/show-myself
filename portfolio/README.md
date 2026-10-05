@@ -191,7 +191,7 @@ curl -X POST http://127.0.0.1:8000/api/messages \
 ## 四、目录结构
 
 ```
-portfolio/
+portfolio/                          ← 项目本体
 ├── backend/
 │   ├── app.py             # 业务与数据层 + FastAPI 应用（可选依赖）
 │   ├── server.py          # 零依赖标准库服务器，复用 app.py 的数据层
@@ -205,18 +205,75 @@ portfolio/
 │       ├── css/admin.css  # 后台样式
 │       ├── js/main.js     # 主页逻辑（渲染简历、留言、访问统计）
 │       ├── js/admin.js    # 后台逻辑（登录、KPI、图表、留言管理）
-│       ├── assets/avatar.svg
+│       ├── assets/avatar.jpg  # 头像（由 setup_avatar.py 生成）
 │       └── favicon.svg
 ├── data/
 │   ├── resume.json        # 简历内容（改这个文件即可更新整站展示）
-│   └── portfolio.db       # SQLite 数据库（首次运行自动生成）
+│   └── portfolio.db       # SQLite 数据库（首次运行自动生成，不入库）
+├── dist/
+│   └── portfolio-standalone.html  # 单文件离线版（构建产物）
+├── tests/                 # 测试与构建脚本
 ├── start.bat / start.sh   # 一键启动脚本
+├── .gitattributes         # 换行策略（start.sh 锁 LF、start.bat 锁 CRLF）
 └── README.md
+
+docs/                               ← GitHub Pages 发布目录（仓库根下）
+├── index.html             # 由 build_pages.py 生成，内容同单文件离线版
+└── .nojekyll              # 禁用 Jekyll，避免下划线文件被忽略
 ```
 
 ---
 
-## 五、数据库
+## 五、部署到 GitHub Pages
+
+Pages 只能托管**静态文件**，所以发布的是单文件离线版（样式/脚本/数据/头像已全部内联）。
+留言板、访问统计、后台在静态托管下天然不可用，页面会自行提示。
+
+```bash
+# 1. 生成发布产物（会同时刷新 dist/ 与 docs/）
+python tests/build_pages.py
+
+# 2. 校验产物（隐私、自包含性、Pages 可用性）
+python tests/check_privacy.py
+python tests/check_pages.py
+
+# 3. 提交并推送
+git add -A
+git commit -m "发布 GitHub Pages"
+git push
+```
+
+**4. 在 GitHub 上启用 Pages**
+
+仓库 → `Settings` → `Pages` → `Source` 选 **Deploy from a branch** →
+分支 `main`、目录 **`/docs`** → `Save`。等待 1–2 分钟后访问：
+
+```
+https://<你的用户名>.github.io/<仓库名>/
+```
+
+> **为什么放在 `docs/`**：仓库根目录里除了项目还有别的内容，用 `/docs` 作发布源
+> 既干净又不影响源码结构（相比新建 `gh-pages` 分支更好维护）。
+
+**隐私设置（重要）**
+
+`data/resume.json` 是整站内容的唯一来源，其中联系方式当前配置为：
+
+| 字段 | 值 | 说明 |
+| --- | --- | --- |
+| `phone` | `""`（空） | **手机号不公开**，页面显示 `phoneNote` |
+| `phoneNote` | `面试时提供` | 手机号为空时展示的提示文案 |
+| `email` | `2937479259@qq.com` | **邮箱公开**，可点击 `mailto:` 联系 |
+
+手机号为空时，`main.js` 不会渲染 `tel:` 链接，而是显示提示文案，
+因此不存在"点不动"的坏链接。改完 `resume.json` 记得重新执行 `build_pages.py`。
+
+> ⚠️ 公开仓库意味着 `docs/index.html` 与 `data/resume.json` 的内容任何人可见，
+> 提交前请先跑 `python tests/check_privacy.py` 确认手机号没有残留。
+
+---
+
+## 六、数据库
 
 SQLite，首次运行自动建表，位置 `data/portfolio.db`。三张表：
 
@@ -228,7 +285,7 @@ SQLite，首次运行自动建表，位置 `data/portfolio.db`。三张表：
 
 ---
 
-## 六、改成你自己的内容
+## 七、改成你自己的内容
 
 1. **改简历内容**：编辑 `data/resume.json`，主页会自动渲染，无需改代码。
    结构调整时对照 `frontend/static/js/main.js` 里的 `renderXxx` 函数即可。
@@ -248,9 +305,29 @@ uvicorn backend.app:app --host 0.0.0.0 --port 8000 --workers 2
 
 ---
 
-## 七、已验证项
+## 八、已验证项
 
-- 40 项端到端接口测试全部通过（页面与静态资源、简历 API、统计、留言增删改查、
-  限流、后台鉴权与令牌失效、目录穿越拦截等）。
-- 主页 42 处、后台 19 处 JS 选择器与 HTML 元素一一对应，导航锚点与区块 id 全部匹配。
+- **41 项**端到端接口测试全部通过（页面与静态资源、简历 API、统计、留言增删改查、
+  限流、后台鉴权与令牌失效、目录穿越拦截、头像位图校验等）。
+- 主页与后台的 JS 选择器与 HTML 元素一一对应，导航锚点与区块 id 全部匹配。
 - 公开留言接口已确认不返回联系方式与 IP（仅后台可见）。
+- 隐私检查通过：手机号在全部产物中零残留，邮箱保留；
+  空手机号不会渲染出坏掉的 `tel:` 链接。
+- GitHub Pages 产物已在静态托管模拟下验证：完全自包含、无外部资源请求、无需后端。
+
+### 常用脚本一览
+
+| 脚本 | 作用 |
+| --- | --- |
+| `tests/setup_avatar.py` | 处理头像照片：裁正方形、缩放、压缩，并修正 `resume.json` |
+| `tests/build_standalone.py` | 生成单文件离线版 `dist/portfolio-standalone.html` |
+| `tests/build_pages.py` | 生成 Pages 发布产物 `docs/index.html` + `.nojekyll` |
+| `tests/build_bat.py` | 由 `start.bat.utf8` 生成 CP936 编码的 `start.bat` |
+| `tests/fix_bat_encoding.py` | 校验/修复 `start.bat` 编码与换行 |
+| `tests/test_api.py` | 端到端接口测试（需先启动服务） |
+| `tests/check_frontend.py` | 前端选择器与锚点一致性检查 |
+| `tests/check_standalone.py` | 单文件离线版自包含性检查 |
+| `tests/check_pages.py` | GitHub Pages 产物检查（需先静态托管 `docs/`） |
+| `tests/check_privacy.py` | 提交前隐私扫描（手机号残留、邮箱保留） |
+| `tests/pre_commit_check.py` | 提交前敏感信息与凭证扫描 |
+
