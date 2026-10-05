@@ -68,6 +68,35 @@ rem ---- defaults (override by setting these before launch) ----
 if "%PORTFOLIO_HOST%"=="" set "PORTFOLIO_HOST=127.0.0.1"
 if "%PORTFOLIO_PORT%"=="" set "PORTFOLIO_PORT=8000"
 
+rem ---- port pre-check ----
+rem On Windows, binding an already-used port raises WinError 10013 and dumps a
+rem Python traceback, which tells a user nothing. Detect it first and print
+rem something actionable.
+rem
+rem The probe code goes through an environment variable instead of an inline
+rem -c "..." argument: cmd.exe cannot handle nested double quotes inside a
+rem for /f command and silently yields an empty result.
+set "PORT_PROBE=import os,socket,sys;s=socket.socket();s.settimeout(1.5);sys.exit(0 if s.connect_ex((os.environ['PORTFOLIO_HOST'],int(os.environ['PORTFOLIO_PORT'])))==0 else 1)"
+set "PORTOCCUPIED="
+"%PYTHON%" -c "%PORT_PROBE%" >nul 2>nul
+if not errorlevel 1 set "PORTOCCUPIED=1"
+
+if defined PORTOCCUPIED (
+  echo.
+  echo   [ERROR] Port %PORTFOLIO_PORT% is already in use.
+  echo   Another instance is probably still running. To fix it, either:
+  echo.
+  echo     1^) Stop the process holding the port ^(PowerShell^):
+  echo        Get-NetTCPConnection -LocalPort %PORTFOLIO_PORT% -State Listen ^|
+  echo          ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+  echo.
+  echo     2^) Or start this one on another port:
+  echo        set PORTFOLIO_PORT=8001 ^&^& start.bat
+  echo.
+  pause
+  exit /b 1
+)
+
 rem Report which interpreter is used, and whether FastAPI is available,
 rem so a silent fallback cannot go unnoticed.
 "%PYTHON%" -c "import fastapi" >nul 2>nul
@@ -78,9 +107,10 @@ if errorlevel 1 (
 )
 echo.
 echo   Python : %PYTHON%
+echo   Port   : %PORTFOLIO_HOST%:%PORTFOLIO_PORT%
 echo   Mode   : %MODE%
 if not "%MODE%"=="FastAPI + uvicorn" (
-  echo   Tip    : pip install -r "%SCRIPT_DIR%backend\requirements.txt"
+  echo   Tip    : activate a conda/venv that has fastapi, or set PORTFOLIO_PYTHON
 )
 
 rem app.py picks FastAPI when available and otherwise falls back

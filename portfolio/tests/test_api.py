@@ -45,6 +45,19 @@ def check(name, condition, extra=""):
     results.append({"name": name, "ok": bool(condition), "extra": str(extra)[:180]})
 
 
+# ---------- 前置检查：留言限流 ----------
+# 服务端对同一 IP 限制每小时 6 条留言。反复运行本测试会把额度用光，
+# 之后第一条留言用例会 429，并连带拖垮依赖它的后续用例（msg_id 为 None）。
+# 这里提前发现并明确提示，避免把「脏数据」误读成「代码回归」。
+status, _pre, _ = call("GET", "/api/messages?page=1&page_size=1")
+_pre_existing = _pre.get("total") if isinstance(_pre, dict) else None
+if _pre_existing and _pre_existing >= 6:
+    print(f"[提示] 数据库里已有 {_pre_existing} 条留言。若之前刚跑过本测试，"
+          f"同一 IP 可能已触发限流（每小时 6 条）。")
+    print("       清理即可重置：停止服务后删除 portfolio/data/portfolio.db*，再启动。")
+    print("       下面若出现 429，属于限流而非代码问题。")
+    print()
+
 # ---------- 页面 ----------
 status, html, ctype = call("GET", "/", raw=True)
 check("GET / 返回 200", status == 200, status)
