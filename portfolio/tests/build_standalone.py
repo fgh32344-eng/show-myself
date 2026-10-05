@@ -2,13 +2,16 @@
 
 为什么需要它
 -----------
-frontend/pages/index.html 是**服务端模板**，不能直接双击打开：
+frontend/pages/index.template.html 是**服务端模板**，不能直接双击打开：
   1. 它引用 /static/css/style.css 这类绝对路径，file:// 下会被解析成
      D:\\static\\css\\style.css（盘符根目录），必然 404；
   2. 页面数据由后端接口提供，file:// 下 fetch('/api/...') 无法工作；
-  3. 模板里的 $site_name 等占位符只有经服务器渲染才会替换。
+  3. 模板里的 $site_name 等占位符只有经服务器渲染才会替换；
+  4. 样式缺失时头像会退化成一张巨大的占位图，观感极差。
 
-本脚本把样式、脚本、简历数据全部内联进一个 HTML 文件，
+（该文件已特意改名为 *.template.html，避免被误认为可直接打开的入口。）
+
+本脚本把样式、脚本、简历数据、头像全部内联进一个 HTML 文件，
 双击即可查看（但留言板与访问统计需要后端，会显示为停用状态）。
 
 用法：python tests/build_standalone.py
@@ -21,7 +24,7 @@ import re
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent.parent
-PAGE = BASE / "frontend" / "pages" / "index.html"
+PAGE = BASE / "frontend" / "pages" / "index.template.html"
 CSS = BASE / "frontend" / "static" / "css" / "style.css"
 JS = BASE / "frontend" / "static" / "js" / "main.js"
 FAVICON = BASE / "frontend" / "static" / "favicon.svg"
@@ -75,6 +78,13 @@ def build(out_path: Path = OUT) -> int:
         print(f"FAIL resume.json 指向的头像不存在：{avatar_web}  ->  {avatar_file}")
         print("     请先执行 python tests/setup_avatar.py")
         return 1
+
+    # ---- 0. 剥掉模板里的「误双击兜底」脚本 ----
+    # 那段脚本只在「未经服务器渲染 + file:// 打开」时提示用户换文件，
+    # 单文件版自己就是正确的文件，留着只是死代码，还会把提示文字带进公开产物。
+    html, n_guard = re.subn(
+        r"\s*<script>\s*/\* 误双击兜底.*?</script>", "", html, flags=re.S
+    )
 
     # ---- 1. 内联样式，替换掉指向 /static 的 link ----
     # 注意：替换内容一律用 lambda 返回，避免 re.subn 把替换串里的 \d、\1 等
@@ -172,6 +182,7 @@ document.addEventListener('click', function (event) {
     print(f"已生成：{out_path}")
     print(f"  体积        : {out_path.stat().st_size / 1024:.1f} KB")
     print(f"  内联样式    : {'成功' if n_link else '失败（未匹配到 link 标签）'}")
+    print(f"  剥离兜底脚本: {n_guard} 处")
     print(f"  内联图标    : {'成功' if n_icon else '失败'}")
     print(f"  内联头像    : {'成功' if n_avatar else '失败'}")
     print(f"  内联脚本    : {'成功' if n_script else '失败'}")

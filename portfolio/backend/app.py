@@ -651,7 +651,7 @@ def build_app() -> Any:
     # ------------- 页面 -------------
     @application.get("/", response_class=HTMLResponse, include_in_schema=False)
     def page_index(request: Request) -> Any:
-        return HTMLResponse(util.render("index.html", request))
+        return HTMLResponse(util.render("index.template.html", request))
 
     @application.get("/admin", response_class=HTMLResponse, include_in_schema=False)
     def page_admin(request: Request) -> Any:

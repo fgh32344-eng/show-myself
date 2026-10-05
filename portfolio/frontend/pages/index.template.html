@@ -1,4 +1,14 @@
 <!DOCTYPE html>
+<!--
+  ⚠️ 这是**服务端模板**（文件名以 .template 结尾），不能直接双击打开。
+  它靠后端渲染：/static 路径、简历数据、$site_name 占位符都依赖服务器。
+
+  想离线双击查看，请打开下面任意一个：
+    portfolio/dist/portfolio-standalone.html   单文件离线版
+    docs/index.html                            GitHub Pages 发布产物
+
+  想通过服务器访问，双击项目根目录的 start.bat 后访问 http://127.0.0.1:8000/
+-->
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -6,6 +16,34 @@
 <title>王耀威 · 人工智能 / 大模型应用 / 软件开发</title>
 <meta name="description" content="王耀威的个人主页 —— 宿州学院人工智能专业 2027 届本科生，方向：计算机视觉、大模型应用与后端开发。">
 <meta name="author" content="王耀威">
+<script>
+/* 误双击兜底：仅在“未经过服务器渲染”且“用 file:// 打开”时才触发。
+   正常服务器渲染与单文件离线版都不会误伤。 */
+(function () {
+  if (location.protocol !== 'file:') return;          // 服务器访问，放行
+  document.addEventListener('DOMContentLoaded', function () {
+    if (window.__SITE_DATA__) return;                  // 已注入数据，放行
+    var box = document.createElement('div');
+    box.setAttribute('style', [
+      'max-width:760px', 'margin:12vh auto', 'padding:36px',
+      'font-family:system-ui,"PingFang SC","Microsoft YaHei",sans-serif',
+      'line-height:1.9', 'color:#e8eefc', 'background:#0b1120',
+      'border:1px solid rgba(120,160,220,.3)', 'border-radius:16px'
+    ].join(';'));
+    box.innerHTML = [
+      '<h2 style="margin:0 0 14px;color:#22d3ee">请打开正确的文件</h2>',
+      '<p>你打开的是 <b>服务端模板</b>，它需要后端渲染，直接双击无法显示。</p>',
+      '<p style="margin-top:16px"><b>想离线查看，打开这个：</b><br>',
+      '<code style="color:#8b5cf6">portfolio/dist/portfolio-standalone.html</code></p>',
+      '<p style="margin-top:8px"><b>想通过服务器查看：</b><br>',
+      '双击项目根目录的 <code style="color:#8b5cf6">start.bat</code>，',
+      '再访问 <code style="color:#8b5cf6">http://127.0.0.1:8000/</code></p>'
+    ].join('');
+    document.body.innerHTML = '';
+    document.body.appendChild(box);
+  });
+})();
+</script>
 <meta name="theme-color" content="#070b16">
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/static/css/style.css">

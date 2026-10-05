@@ -11,7 +11,7 @@ from pathlib import Path
 
 BASE = Path(__file__).resolve().parent.parent
 PAGES = {
-    "frontend/pages/index.html": "frontend/static/js/main.js",
+    "frontend/pages/index.template.html": "frontend/static/js/main.js",
     "frontend/pages/admin.html": "frontend/static/js/admin.js",
 }
 
@@ -50,7 +50,7 @@ for page, script in PAGES.items():
         ok = False
 
 # 首页 <section id> 与导航 href="#..." 对齐，避免导航点了没反应
-index = (BASE / "frontend/pages/index.html").read_text(encoding="utf-8")
+index = (BASE / "frontend/pages/index.template.html").read_text(encoding="utf-8")
 anchors = set(re.findall(r'href="#([A-Za-z0-9_-]+)"', index))
 section_ids = set(re.findall(r'<section[^>]*id="([^"]+)"', index))
 broken_anchors = sorted(anchors - section_ids)

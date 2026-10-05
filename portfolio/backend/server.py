@@ -370,7 +370,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.command in ("GET", "HEAD"):
                 if path in ("/", "/index.html"):
                     # 把简历数据内联，首屏不需要额外请求
-                    self.render_page("index.html", self.bootstrap_data())
+                    self.render_page("index.template.html", self.bootstrap_data())
                     return
                 if path in ("/admin", "/admin.html"):
                     self.render_page("admin.html", {"brand": util.SITE_NAME})

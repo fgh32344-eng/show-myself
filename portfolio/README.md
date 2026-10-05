@@ -81,9 +81,20 @@ python tests/build_standalone.py     # 生成 dist/portfolio-standalone.html
 
 生成后**直接双击** `dist/portfolio-standalone.html` 即可，无需任何服务。
 
-> **⚠️ 请不要直接双击 `frontend/pages/index.html`，它打不开**
+> **⚠️ 哪个文件能双击，哪个不能——只看文件名**
 >
-> 那是**服务端模板**，不是可浏览的页面，直接打开会是一具没有样式的空骨架：
+> | 文件 | 能双击吗 | 说明 |
+> | --- | --- | --- |
+> | `dist/portfolio-standalone.html` | ✅ **能** | 单文件离线版，全内联 |
+> | `docs/index.html` | ✅ **能** | Pages 发布产物，同上 |
+> | `frontend/pages/index.template.html` | ❌ **不能** | 服务端模板，需后端渲染 |
+>
+> 模板文件名特意以 **`.template`** 结尾，就是为了避免被误当成入口。
+> 如果仍然双击了它，页面会显示一个提示框引导你打开正确的文件；
+> 若 JavaScript 也被禁用，你会看到没有样式的骨架和一张巨大的占位图——
+> 那不是网站坏了，而是**这个文件本来就不能单独打开**。
+>
+> 模板为什么不能双击：
 >
 > 1. 它引用 `/static/css/style.css` 这类**根路径绝对引用**。在 `file://` 协议下，
 >    浏览器会把它解析到**盘符根目录**，即 `D:\static\css\style.css`——不存在，
@@ -198,8 +209,8 @@ portfolio/                          ← 项目本体
 │   └── requirements.txt   # FastAPI 方案的可选依赖
 ├── frontend/
 │   ├── pages/
-│   │   ├── index.html     # 主页模板
-│   │   └── admin.html     # 后台页模板
+│   │   ├── index.template.html  # 主页模板（.template 后缀 = 需服务器渲染，勿双击）
+│   │   └── admin.html           # 后台页模板（同样需服务器）
 │   └── static/
 │       ├── css/style.css  # 主页样式
 │       ├── css/admin.css  # 后台样式
