@@ -6,11 +6,23 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent.parent
 REPO = BASE.parent
+
+
+def _in_git_history(name: str) -> bool:
+    """检查 git 历史（所有可达对象）里是否还存在某个文件名。"""
+    result = subprocess.run(
+        ["git", "-C", str(REPO), "rev-list", "--all", "--objects"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        return False
+    return any(name in line for line in result.stdout.splitlines())
 
 # 需要彻底消失的手机号各种写法。
 # 关键：不把号码原文写进本文件——否则这个检查脚本自己就成了泄露源
@@ -101,10 +113,13 @@ for name, rel in [("Pages 产物", REPO / "docs" / "index.html"),
 
 print("\n=== 4. 仓库里不应包含运行时数据 ===")
 db_files = [str(p.relative_to(REPO)) for p in (BASE / "data").glob("*.db*")]
-print(f"  本地存在的数据库文件（应被 gitignore）: {db_files or '无'}")
-check("原图已归档且被忽略",
-      (BASE / "assets-src" / "photo-original.png").exists()
-      and "assets-src/" in (BASE / ".gitignore").read_text(encoding="utf-8"))
+print(f"  本地存在的数据库文件（应为空或已 gitignore）: {db_files or '无'}")
+check("原图已从工作区移除",
+      not (BASE / "assets-src" / "photo-original.png").exists(),
+      "assets-src/photo-original.png 仍存在")
+check("原图已从 git 历史移除",
+      not _in_git_history("photo.png"),
+      "history 中仍能找到 photo.png（历史未清理干净）")
 
 print("\n结果：" + ("通过，隐私设置符合要求" if ok else "未通过，请检查标记为 BAD 的项"))
 sys.exit(0 if ok else 1)

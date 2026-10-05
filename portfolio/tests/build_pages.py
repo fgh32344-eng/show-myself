@@ -16,6 +16,7 @@ Pages 只能托管**静态文件**，因此这里复用单文件离线版：
 from __future__ import annotations
 
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -51,12 +52,34 @@ def main() -> int:
     print(f"  大小      : {INDEX.stat().st_size / 1024:.1f} KB")
     print(f"  .nojekyll : 已生成（禁用 Jekyll 处理）")
     print(f"  已同步到  : {STANDALONE.relative_to(REPO_ROOT)}")
+
+    # docs/ 在 .gitignore 里（构建产物），但 Pages 必须从仓库目录发布，
+    # 因此这里显式强制加入索引。否则用户 push 后线上拿不到页面。
+    staged = _stage_docs()
+    if staged is True:
+        print("  已加入索引: docs/（-f 强制，因为该目录被 gitignore 排除）")
+    elif staged is False:
+        print("  提示: 无法自动加入索引，请手动执行  git add -f docs")
+    else:
+        print("  提示: 未检测到 git 仓库，跳过加入索引")
+
     print("\n下一步：")
-    print("  1. 提交并推送：git add -A && git commit -m \"发布 GitHub Pages\" && git push")
+    print("  1. 提交并推送：git commit -m \"发布 GitHub Pages\" && git push")
     print("  2. 仓库 Settings → Pages → Source 选 “Deploy from a branch”")
     print("     分支选 main，目录选 /docs，保存后等 1-2 分钟")
     print("  3. 访问 https://<你的用户名>.github.io/<仓库名>/")
     return 0
+
+
+def _stage_docs() -> bool | None:
+    """把 docs/ 强制加入 git 索引。返回 True/False 表示成功与否，None 表示非 git 仓库。"""
+    if not (REPO_ROOT / ".git").exists():
+        return None
+    result = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "add", "-f", "docs"],
+        capture_output=True, text=True,
+    )
+    return result.returncode == 0
 
 
 if __name__ == "__main__":
