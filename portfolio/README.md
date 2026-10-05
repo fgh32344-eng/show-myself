@@ -24,27 +24,42 @@ Windows 双击 `start.bat`；macOS / Linux 执行：
 **两种情况页面和接口完全一致**。`start.bat` 会在启动时打印实际使用的解释器与模式，
 避免"以为在用 FastAPI、其实回退成了标准库"这种静默降级。
 
-**Python 解释器的查找顺序**（找到即用，可用 `PORTFOLIO_PYTHON` 环境变量直接指定）：
+**Python 解释器的查找顺序**（找到即用，第一个非空即为结果）：
 
 | 顺序 | 来源 | 说明 |
 | --- | --- | --- |
-| 0 | `CONDA_PREFIX` / `VIRTUAL_ENV` | 已激活的 conda / venv 环境优先 |
-| 1 | `PORTFOLIO_PYTHON` | 显式指定的解释器绝对路径 |
-| 2 | `py` 启动器 | 系统注册的默认版本 |
-| 3 | `python`（PATH） | 当前 PATH 中的 Python |
-| 4 | DSH 随附运行时 | 兜底 |
+| 0a | `PORTFOLIO_PYTHON` | 显式指定，**最高优先级**，不会被任何规则覆盖 |
+| 0b | `CONDA_PREFIX` / `VIRTUAL_ENV` | 已激活的 conda / venv 环境 |
+| 0c | **`conda\envs\person`** | 本项目指定的默认环境 |
+| 1 | `py` 启动器 | 系统注册的默认版本 |
+| 2 | `python`（PATH） | 当前 PATH 中的 Python |
+| 3 | DSH 随附运行时 | 兜底 |
 
-> **为什么把虚拟环境放在最前面**：如果你在某个 conda 环境里 `pip install fastapi`，
-> 自然是希望就用它。早先的脚本优先用 `py` 启动器，会静静地选中另一个没装
-> fastapi 的解释器并回退到标准库，让人以为 FastAPI 没生效。
+本项目默认使用名为 **`person`** 的 conda 环境（内含 FastAPI）。
+只要它存在于 `D:\conda\envs\person`，**直接双击 `start.bat` 就会自动使用它**，
+不需要先 `conda activate`。
 
-指定解释器的例子：
+想换成别的环境，三种方式任选：
 
 ```powershell
-# Windows：显式指定某个环境
-$env:PORTFOLIO_PYTHON = "D:\conda\envs\person\python.exe"
+# 方式 1：改默认环境名（改 start.bat.utf8 里的这一行后重新生成 start.bat）
+#   if not defined PORTFOLIO_ENV_NAME set "PORTFOLIO_ENV_NAME=person"
+
+# 方式 2：运行时指定环境名与 conda 根目录
+$env:PORTFOLIO_ENV_NAME = "opencv"
+$env:PORTFOLIO_CONDA_ROOT = "D:\conda"
+.\start.bat
+
+# 方式 3：直接指定解释器绝对路径（优先级最高）
+$env:PORTFOLIO_PYTHON = "D:\conda\envs\opencv\python.exe"
 .\start.bat
 ```
+
+> **为什么 0a 和 0b 排在 0c 前面**：如果你临时激活了某个环境、或显式指定了解释器，
+> 那说明你此刻就想用那个，脚本不该擅自替你改回 `person`。
+> 而 0c 保证「什么都不设置时」也能用上装了 FastAPI 的环境——
+> 这正是早先版本的缺陷：它优先用 `py` 启动器，会选中另一个没装 fastapi 的
+> 解释器并静默回退到标准库模式，让人以为 FastAPI 没生效。
 
 > **⚠️ 修改 `start.bat` 时必读（曾经踩过的坑）**
 >

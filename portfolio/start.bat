@@ -18,22 +18,54 @@ setlocal enableextensions
 set "SCRIPT_DIR=%~dp0"
 set "PYTHON="
 
-rem ---- 0. active conda/venv environment ----
-rem If a virtual environment is activated, prefer it: a user who installed
-rem fastapi into that environment expects it to be used. Without this step
-rem the py launcher below would win and silently fall back to the
-rem zero-dependency server, hiding the fact that fastapi is available.
-if defined CONDA_PREFIX (
-  if exist "%CONDA_PREFIX%\python.exe" set "PYTHON=%CONDA_PREFIX%\python.exe"
+rem ============================================================
+rem  Interpreter selection - first match wins:
+rem    0a. PORTFOLIO_PYTHON              explicit override, highest priority
+rem    0b. activated conda / venv        the environment you are working in
+rem    0c. CONDA_ENVS_DIRS\person        this project's designated environment
+rem    1.  py launcher
+rem    2.  python on PATH
+rem    3.  bundled DSH runtime
+rem
+rem  Changing 0c: edit PORTFOLIO_ENV_NAME below, or set PORTFOLIO_PYTHON.
+rem  Changing the conda root: set PORTFOLIO_CONDA_ROOT before launching.
+rem ============================================================
+
+rem ---- 0c target environment (must match your conda env name) ----
+if not defined PORTFOLIO_ENV_NAME set "PORTFOLIO_ENV_NAME=person"
+if not defined PORTFOLIO_CONDA_ROOT (
+  if exist "D:\conda\envs" (
+    set "PORTFOLIO_CONDA_ROOT=D:\conda"
+  ) else if exist "%USERPROFILE%\miniconda3\envs" (
+    set "PORTFOLIO_CONDA_ROOT=%USERPROFILE%\miniconda3"
+  ) else if exist "%USERPROFILE%\anaconda3\envs" (
+    set "PORTFOLIO_CONDA_ROOT=%USERPROFILE%\anaconda3"
+  )
+)
+
+rem ---- 0a. explicit override (highest priority) ----
+if defined PORTFOLIO_PYTHON (
+  if exist "%PORTFOLIO_PYTHON%" set "PYTHON=%PORTFOLIO_PYTHON%"
+)
+
+rem ---- 0b. already activated conda/venv environment ----
+if not defined PYTHON (
+  if defined CONDA_PREFIX (
+    if exist "%CONDA_PREFIX%\python.exe" set "PYTHON=%CONDA_PREFIX%\python.exe"
+  )
 )
 if not defined PYTHON (
   if defined VIRTUAL_ENV (
     if exist "%VIRTUAL_ENV%\Scripts\python.exe" set "PYTHON=%VIRTUAL_ENV%\Scripts\python.exe"
   )
 )
+
+rem ---- 0c. this project's designated conda environment ----
 if not defined PYTHON (
-  if defined PORTFOLIO_PYTHON (
-    if exist "%PORTFOLIO_PYTHON%" set "PYTHON=%PORTFOLIO_PYTHON%"
+  if defined PORTFOLIO_CONDA_ROOT (
+    if exist "%PORTFOLIO_CONDA_ROOT%\envs\%PORTFOLIO_ENV_NAME%\python.exe" (
+      set "PYTHON=%PORTFOLIO_CONDA_ROOT%\envs\%PORTFOLIO_ENV_NAME%\python.exe"
+    )
   )
 )
 
