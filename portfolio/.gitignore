@@ -1,0 +1,33 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.venv-libs/
+env/
+
+# ---- 数据库（含访客留言与 IP，属于运行时数据，不要入库）----
+data/*.db
+data/*.db-wal
+data/*.db-shm
+*.sqlite3
+
+# ---- 测试产物 ----
+tests/test_report.json
+
+# ---- 构建产物（如需发布到 GitHub Pages 可自行放开下面一行）----
+# dist/portfolio-standalone.html
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ---- 临时文件 ----
+_tmp/
+*.log
+*.bak
